@@ -113,7 +113,7 @@ CREATE TABLE Service_Billing (
     SBilling_ID VARCHAR(20) PRIMARY KEY,
     Customer_ID VARCHAR(20) NOT NULL,
     Service_Booking_ID VARCHAR(20) NOT NULL,
-    Amount Price(10,2) NOT NULL,
+	Price DECIMAL(10,2) NOT NULL,
     Payment_Status VARCHAR(20) NOT NULL CHECK (Payment_Status IN ('Paid', 'Pending')),
     Payment_Date DATE NOT NULL,
     Payment_Method VARCHAR(20) NOT NULL,
@@ -131,12 +131,12 @@ CREATE INDEX idx_service_price ON Service (Price);
 -- Table population
 
 INSERT INTO Branches VALUES 
-('B001', 'Samaan Na-na Executive', 'Accra', TRUE 5, 'E001'),
+('B001', 'Samaan Na-na Executive', 'Accra', TRUE, 5, 'E001'),
 ('B002', 'Samaan Frimps Suites', 'Koforidua',TRUE, 5, 'E002'),
 ('B003', 'Samaan Amar Resorts & Spa Two', 'Kwahu',TRUE, 5, 'E003'),
 ('B004', 'Samaan Kiki Express Hotel Two', 'Kwahu',TRUE, 5, 'E004'),
 ('B005', 'Samaan Sin Ocean Views', 'Cape Coast',FALSE, 5, 'E005'),
-('B006', 'Samaan Hilltop', 'Kumasi',FALSE, 5, 'E006'),
+('B006', 'Samaan Hilltop', 'Kumasi',FALSE, 5, 'E006');
 -- ('B007', 'Samaan Forest Lodge', 'Takoradi', 30, 'E007'),
 -- ('B008', 'Samaan Riverside', 'Tamale', 35, 'E008'),
 -- ('B009', 'Samaan Desert Retreat', 'Wa', 25, 'E009'),
@@ -183,10 +183,10 @@ INSERT INTO Department VALUES
 ('D004', 'Housekeeping', 'E004'),
 ('D005', 'Security', 'E005'),
 ('D006', 'Gardening', 'E011'),
-('D001', 'Accounting', 'E012'),
-('D002', 'Maintenance', 'E013'),
-('D003', 'Transport', 'E014'),
-('D004', 'Administration', 'E015');
+('D007', 'Accounting', 'E012'),
+('D008', 'Maintenance', 'E013'),
+('D009', 'Transport', 'E014'),
+('D010', 'Administration', 'E015');
 
 INSERT INTO Room VALUES
 ('R001', 'Deluxe Room', 'Single', '100', TRUE, 'B001'),
@@ -205,7 +205,7 @@ INSERT INTO Room VALUES
 ('R014', 'Standard Room', 'Single', '80', FALSE, 'B003'),
 ('R015', 'Standard Room', 'Single', '80', FALSE, 'B001'),
 ('R016', 'Standard Room', 'Single', '80', FALSE, 'B002'),
-('R017', 'Standard Room', 'Single', '80', FALSE, 'B002'),
+('R017', 'Standard Room', 'Single', '80', FALSE, 'B004'),
 ('R018', 'Economy Room', 'Single', '60', TRUE, 'B004'),
 ('R019', 'Economy Room', 'Single', '60', TRUE, 'B003'),
 ('R020', 'Economy Room', 'Single', '60', TRUE, 'B004');
