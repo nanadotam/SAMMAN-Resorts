@@ -101,7 +101,6 @@ CREATE TABLE Service_Booking (
 
 CREATE TABLE Room_Billing (
     RBilling_ID VARCHAR(20) PRIMARY KEY,
-    Customer_ID VARCHAR(20) NOT NULL,
     Room_Booking_ID VARCHAR(20) NOT NULL,
     Payment_Status VARCHAR(20) NOT NULL CHECK (Payment_Status IN ('Paid', 'Pending')),
     Payment_Date DATE NOT NULL,
@@ -111,7 +110,6 @@ CREATE TABLE Room_Billing (
 
 CREATE TABLE Service_Billing (
     SBilling_ID VARCHAR(20) PRIMARY KEY,
-    Customer_ID VARCHAR(20) NOT NULL,
     Service_Booking_ID VARCHAR(20) NOT NULL,
 	Price DECIMAL(10,2) NOT NULL,
     Payment_Status VARCHAR(20) NOT NULL CHECK (Payment_Status IN ('Paid', 'Pending')),
@@ -122,8 +120,8 @@ CREATE TABLE Service_Billing (
 
 -- Indexing for Performance
 CREATE INDEX idx_room_booking ON Room_Booking(Customer_ID, Room_ID);
-CREATE INDEX idx_service_booking ON Service_Booking(Customer_ID, Service_ID);
-CREATE INDEX idx_room_billing ON Room_Billing(Customer_ID, Room_Booking_ID);
+CREATE INDEX idx_service_booking ON Service_Booking(Service_ID);
+CREATE INDEX idx_room_billing ON Room_Billing(Room_Booking_ID);
 CREATE INDEX idx_customer_email ON Customer (Email);
 CREATE INDEX idx_room_price ON Room (Price);
 CREATE INDEX idx_service_price ON Service (Price);
@@ -314,14 +312,56 @@ ALTER TABLE Service_Billing
 ADD FOREIGN KEY (Service_Booking_ID) REFERENCES Service_Booking(Service_Booking_ID) ON UPDATE CASCADE;
 
 
---QUERIES FOR CHECKING BOOKINGS
+-- QUERIES FOR CHECKING BOOKINGS
 
 -- Get all that are unbooked
 SELECT Room_ID, Room_Name, Room_Type, Price AS Unbooked_Rooms
 FROM Room
-WHERE Room_Status=FALSE
+WHERE Room_Status=FALSE;
 
---Get all rooms that are booked
+-- Get all rooms that are booked
+WITH RoomBookings AS (
+    SELECT 
+        Room.Room_ID, 
+        Room.Room_Name, 
+        Room.Room_Type, 
+        Room_Booking.Room_Booking_ID, 
+        Room_Booking.Customer_ID, 
+        Room_Booking.Check_In_Date, 
+        Room_Booking.Check_Out_Date AS Booked_Rooms
+    FROM 
+        Room
+    LEFT JOIN 
+        Room_Booking ON Room.Room_ID = Room_Booking.Room_ID
+    WHERE 
+        Room.Room_Status = TRUE
+)
+SELECT 
+    Room_ID, 
+    Room_Name, 
+    Room_Type, 
+    Room_Booking_ID, 
+    Customer_ID, 
+    Check_In_Date, 
+    Booked_Rooms
+FROM 
+    RoomBookings
+
+UNION
+
+SELECT 
+    NULL AS Room_ID, 
+    NULL AS Room_Name, 
+    NULL AS Room_Type, 
+    NULL AS Room_Booking_ID, 
+    NULL AS Customer_ID, 
+    NULL AS Check_In_Date, 
+    Room_Booking.Check_Out_Date AS Booked_Rooms
+FROM 
+    Room_Booking
+RIGHT JOIN 
+    Room ON Room.Room_ID = Room_Booking.Room_ID;
+/*
 SELECT Room.Room_ID, Room.Room_Name, Room.Room_Type, Room_Booking.Room_Booking_ID, 
 Room_Booking.Customer_ID, Room_Booking.Check_In_Date, Room_Booking.Check_Out_Date AS Booked_Rooms
 FROM Room
@@ -331,7 +371,7 @@ UNION
 SELECT Booked_Rooms
 FROM Room_Booking
 RIGHT JOIN Room ON Room.Room_ID = Room_Booking.Room_ID;
-
+*/
 -- Select Customer details along with their room booking information
 SELECT c.Customer_ID, c.First_Name, c.Last_Name, r.Room_Name, rb.Check_In_Date, rb.Check_Out_Date
 FROM Room_Booking rb
@@ -349,27 +389,38 @@ WHERE sb.Check_Out_Time IS NOT NULL  -- Filter to include only bookings with a n
 ORDER BY sb.Service_Booking_ID;  -- Order by Service_Booking_ID
 
 
----QUERIES FOR CUSTOMER ANALYTICS
+-- QUERIES FOR CUSTOMER ANALYTICS
 
---Groups the total expenditure a customer makes  on room bookings and orders by amount spent
-SELECT Room_Booking.Customer_ID, Customer.First_Name, 
-    Customer.Last_Name, SUM(Room.Price) as Total_Room_Expenditure_Per_Customer
+-- Groups the total expenditure a customer makes  on room bookings and orders by amount spent
+SELECT Room_Booking.Customer_ID, 
+    Customer.First_Name, 
+    Customer.Last_Name, 
+    SUM(Room.Price) AS Total_Room_Expenditure_Per_Customer
 FROM Room_Booking
 JOIN Room ON Room_Booking.Room_ID = Room.Room_ID
-GROUP BY Room_Booking.Customer_ID
+JOIN Customer ON Room_Booking.Customer_ID = Customer.Customer_ID
+GROUP BY Room_Booking.Customer_ID, 
+    Customer.First_Name, 
+    Customer.Last_Name
 ORDER BY Total_Room_Expenditure_Per_Customer DESC;
 
---Groups the total expenditure a customer makes on service bookings and orders by amount spent
-SELECT Service_Booking.Customer_ID, Customer.First_Name, Customer.Last_Name, SUM(Service_Booking.Price) as Total_Service_Expenditure_Per_Customer
+-- Groups the total expenditure a customer makes on service bookings and orders by amount spent
+SELECT Service_Booking.Customer_ID, 
+    Customer.First_Name, 
+    Customer.Last_Name, 
+    SUM(Service_Booking.Price) AS Total_Service_Expenditure_Per_Customer
 FROM Service_Booking
-GROUP BY Service_Booking.Customer_ID
+JOIN Customer ON Service_Booking.Customer_ID = Customer.Customer_ID
+GROUP BY Service_Booking.Customer_ID, 
+    Customer.First_Name, 
+    Customer.Last_Name
 ORDER BY Total_Service_Expenditure_Per_Customer DESC;
 
 
----QUERIES FOR CALCULATING REVENUE
+-- QUERIES FOR CALCULATING REVENUE
 
 -- Calculating paid services
-select sum(Amount) as "Revenues for Services Paid"
+select sum(Price) as "Revenues for Services Paid"
 from Service_Billing
 where Payment_Status="Paid"; 
 
@@ -381,7 +432,7 @@ where Room_Billing.Payment_Status="Paid";
 
 -- This query calculates the total revenue generated for each room type:
 SELECT Room.Room_Type, 
-	SUM(CASE WHEN Room_Billing.Payment_Status = 'Paid' THEN 1 ELSE 0 END) AS Total_Revenue
+	SUM(CASE WHEN Room_Billing.Payment_Status = 'Paid' THEN 1 ELSE 0 END) AS Total_Revenue,
 	COUNT(Room_Booking.Room_Booking_ID) AS Number_of_Bookings
 FROM Room
 JOIN Room_Booking ON Room.Room_ID = Room_Booking.Room_ID
@@ -389,11 +440,11 @@ JOIN Room_Billing ON Room_Booking.Room_Booking_ID = Room_Billing.Room_Booking_ID
 GROUP BY Room.Room_Type;
 
 
----MANAGING BRANCHES
----Finding the number of employees per branch
-SELECT sum(employee.ID) as Total_Employees
+-- MANAGING BRANCHES
+-- Finding the number of employees per branch
+SELECT sum(Employee_ID) as Total_Employees
 FROM Employee
-GROUP BY Branch_ID
+GROUP BY Branch_ID;
 
 -- This query calculates the total revenue generated for each branch:
 SELECT Room.Branch_ID, 
@@ -404,7 +455,7 @@ JOIN Room_Billing ON Room_Booking.Room_Booking_ID = Room_Billing.Room_Booking_ID
 GROUP BY Room.Branch_ID;
 
 
----QUERIES FOR EMPLOYEE ANALYTICS 
+-- QUERIES FOR EMPLOYEE ANALYTICS 
 
 -- Select Employee details along with their associated Branch and Department names
 SELECT e.Employee_ID, e.First_Name, e.Last_Name, b.Branch_Name, d.Department_Name
@@ -429,14 +480,14 @@ INNER JOIN Service_Booking sb ON e.Employee_ID = sb.Employee_ID  -- Join Employe
 INNER JOIN Customer c ON sb.Customer_ID = c.Customer_ID;  -- Join Service_Booking table with Customer table on Customer_ID
 
 
---QUERIES FOR CREATING RECEIPTS
+-- QUERIES FOR CREATING RECEIPTS
 
 -- Bills for Booking rooms
 SELECT rbill.RBilling_ID, c.Customer_ID, c.First_Name, c.Last_Name, r.Room_ID, r.Price, rbill.Payment_Date ,rbill.Payment_Method
 FROM Room_Booking rb
 INNER JOIN Customer c ON rb.Customer_ID = c.Customer_ID  -- Join with Customer table on Customer_ID
 INNER JOIN Room r ON rb.Room_ID = r.Room_ID  -- Join with Room table on Room_ID
-INNER JOIN Room_Billing rbill ON rbill.Customer_ID = c.Customer_ID
+INNER JOIN Room_Billing rbill ON rbill.Room_Booking_ID = rb.Room_Booking_ID
 WHERE rbill.Payment_Status="Paid"
 ORDER BY rbill.Payment_Date;  
 
@@ -445,14 +496,14 @@ SELECT sb.Service_Booking_ID, c.Customer_ID, c.First_Name, c.Last_Name, s.Servic
 FROM Service_Booking sb
 INNER JOIN Customer c ON sb.Customer_ID = c.Customer_ID  -- Join with Customer table on Customer_ID
 INNER JOIN Service s ON sb.Service_ID = s.Service_ID  -- Join with Service table on Service_ID
-INNER JOIN Service_Billing sbill ON sbill.Customer_ID = c.Customer_ID
+INNER JOIN Service_Billing sbill ON sbill.Service_Booking_ID = sb.Service_Booking_ID
 WHERE sbill.Payment_Status="Paid"
-ORDER BY sb.Payment_Date;  -- Order by Service_Booking_ID
+ORDER BY sbill.Payment_Date;  -- Order by Payment Date
 
 
---QUERIES ...
+-- QUERIES ...
 
-'''
+/*
 ---Codes to remove
 -- Get all customers and their billing details 
 -- (including customers who have not made any room bookings)
@@ -497,6 +548,7 @@ FROM Room_Booking;
 -- Select all columns from Room_Booking table
 -- Join with Customer table on customer_id to get customer details
 -- Order the results by the customer's last name
+
 SELECT Room_Booking.*
 FROM Room_Booking
 JOIN Customer ON Room_Booking.customer_id = Customer.Customer_ID
@@ -515,7 +567,7 @@ ORDER BY Customer.Last_Name;
 -- Order the results by the customer's last name
 SELECT Room_Billing.*
 FROM Room_Billing
-JOIN Customer ON Room_Billing.customer_id = Customer.Customer_ID
+JOIN Customer ON Room_Billing.Customer_ID = Customer.Customer_ID
 ORDER BY Customer.Last_Name;
 
 -- Select all columns from Service_Billing table
@@ -525,3 +577,4 @@ SELECT Service_Billing.*
 FROM Service_Billing
 JOIN Customer ON Service_Billing.customer_id = Customer.Customer_ID
 ORDER BY Customer.Last_Name;
+*/
